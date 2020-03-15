@@ -1,18 +1,21 @@
 /* 
  *  Plan:
- *  - Receiver gets signal in infinite loop (always).
- *  - LED shows some info (always).
- *  - Robonysha goes straight (on PLAY an EQ).
- *  - Robonysha changes speed (on VOL- and VOL+).
- *  - Robonysha turns left and right (on PREV and NEXT).
- *  - Rononysha turns heads (on CH- and CH+).
- *  - Digital line sensors measure speed (always).
- *  - Analog line sensors follow line (on 100+).
- *  - Vision module follows a hand (on 200+).
+ *  - [ X ] Receiver gets signal in infinite loop (always).
+ *  - [ TODO ] LED shows some info (always).
+ *  - [ X ] Robonysha goes and stops (on PLAY an EQ).
+ *  - [ X ] Robonysha changes speed (on VOL- and VOL+).
+ *  - [ TODO ] Rononysha turns head (on PREV and NEXT).
+ *  - [ TODO ] Robonysha turns left, right, goes forward (on CH-, CH+, CH).
+ *  - [ TODO ] Digital line sensors measure speed (always).
+ *  - [ TODO ] Analog line sensors follow line (on 100+).
+ *  - [ TODO ] Vision module follows a hand (on 200+).
+ *  - [ TODO ] Speed is set up to m/s, not Volts to Pin (always).
  */
 
 #include <IRremote.h>
 #include <Servo.h>
+
+// PINS
 
 #define RECV_PIN    11
 #define LED_PIN      3
@@ -33,13 +36,23 @@
 #define EYES_MAIN   12
 #define EYES_TRIG   13
 
-// IR receiver 
+// DRIVERS
+ 
 IRrecv irrecv(RECV_PIN);
 decode_results results;
 
 Servo head;
 
-String decode_command(int value) {
+// STATE
+
+boolean rIsGoing;
+int rSpeed;  // min 50, max ???
+boolean rIsTurningLeft;
+boolean rIsTurningRight;
+
+// UTILITIES 
+
+String decodeCommand(int value) {
   switch(value) {
     case 16753245 : return "ch-";
     case 16736925 : return "ch";
@@ -49,8 +62,8 @@ String decode_command(int value) {
     case 16712445 : return "next"; 
     case 16761405 : return "play";
 
-    case 16769055 : return "vol+";
-    case 16754775 : return "vol-"; 
+    case 16769055 : return "vol-";
+    case 16754775 : return "vol+"; 
     case 16748655 : return "eq";
 
     case 16738455 : return "0";
@@ -74,29 +87,46 @@ void setup() {
   }
 
   head.attach(SERVO_PIN);
+
+  rIsGoing = false;
+  rSpeed = 50;
+  rIsTurningLeft = false;
+  rIsTurningRight = false;
 }
 
 void loop() {
-  // head.write(90);
-  
   if (irrecv.decode(&results)) {
-    String command = decode_command(results.value);
+    String command = decodeCommand(results.value);
     Serial.println(command);
 
-    // Real stuff here
     if (command == "play") {
-      digitalWrite(DIR_L, LOW);
-      analogWrite(SPEED_L, 60);
-      digitalWrite(DIR_R, HIGH);
-      analogWrite(SPEED_R, 60);
+      rIsGoing = true;
     }
 
     if (command == "eq") {
-      analogWrite(SPEED_L, 0);
-      analogWrite(SPEED_R, 0);
+      rIsGoing = false;
+    }
+
+    if (command == "vol-") {
+      rSpeed -= 10;
+    }
+
+    if (command == "vol+") {
+      rSpeed += 10;
     }
     
     irrecv.resume(); // Receive the next value
   }
+
+  if (rIsGoing) {
+    digitalWrite(DIR_L, LOW);
+    analogWrite(SPEED_L, rSpeed);
+    digitalWrite(DIR_R, HIGH);
+    analogWrite(SPEED_R, rSpeed);
+  } else {
+    analogWrite(SPEED_L, 0);
+    analogWrite(SPEED_R, 0);
+  }
+  
   delay(100);
 }
